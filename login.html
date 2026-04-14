@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Conferência de Caixa</title>
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-header">
+        <span class="login-icon">🏥</span>
+        <h1>Clínica Você + Saúde</h1>
+        <p>Conferência de Caixa</p>
+      </div>
+
+      <form id="login-form" class="login-form">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" required placeholder="seu@email.com" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="password">Senha</label>
+          <input type="password" id="password" required placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <div id="error-msg" class="error-msg" style="display:none"></div>
+        <button type="submit" class="btn-login" id="btn-login">
+          <span id="btn-text">Entrar</span>
+          <span id="btn-loading" style="display:none">Entrando...</span>
+        </button>
+      </form>
+    </div>
+    <p class="footer-text">Sistema interno — Acesso restrito</p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const _SUPABASE_URL = 'https://snausqyrqwdmdkcivmtb.supabase.co';
+    const _SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNuYXVzcXlycXdkbWRrY2l2bXRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMzA4MjYsImV4cCI6MjA5MTcwNjgyNn0.ygTDV_993trG_0bQbj-glPLX_9nXGSG_OXkH2L8wLh4';
+    const sbClient = window.supabase.createClient(_SUPABASE_URL, _SUPABASE_KEY);
+
+    // Check if already logged in
+    sbClient.auth.getSession().then(({ data: { session } }) => {
+      if (session) window.location.href = '/index.html';
+    });
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const errorEl = document.getElementById('error-msg');
+      const btnText = document.getElementById('btn-text');
+      const btnLoading = document.getElementById('btn-loading');
+      const btn = document.getElementById('btn-login');
+
+      errorEl.style.display = 'none';
+      btn.disabled = true;
+      btnText.style.display = 'none';
+      btnLoading.style.display = 'inline';
+
+      const { error } = await sbClient.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        errorEl.textContent = error.message === 'Invalid login credentials'
+          ? 'Email ou senha incorretos'
+          : error.message;
+        errorEl.style.display = 'block';
+        btn.disabled = false;
+        btnText.style.display = 'inline';
+        btnLoading.style.display = 'none';
+      } else {
+        window.location.href = '/index.html';
+      }
+    });
+  </script>
+</body>
+</html>

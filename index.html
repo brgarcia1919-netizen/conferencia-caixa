@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conferência de Caixa — Clínica Você + Saúde</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <h1 class="header-title">🏥 Conferência de Caixa</h1>
+      <span class="header-subtitle">Clínica Você + Saúde</span>
+    </div>
+    <nav class="header-nav">
+      <button class="nav-btn active" data-view="daily">📋 Diário</button>
+      <button class="nav-btn" data-view="monthly">📊 Mensal</button>
+      <button class="nav-btn" id="btn-logout" title="Sair" style="margin-left:8px; opacity:0.7">🚪 Sair</button>
+    </nav>
+  </header>
+
+  <!-- DAILY VIEW -->
+  <main id="view-daily" class="view active">
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <button class="btn btn-icon" id="btn-prev-day" title="Dia anterior">◀</button>
+        <input type="date" id="date-picker" class="date-picker">
+        <button class="btn btn-icon" id="btn-next-day" title="Próximo dia">▶</button>
+        <span id="day-of-week" class="day-label"></span>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-secondary" id="btn-import">🔄 Importar Vissmed</button>
+        <div id="status-badge" class="badge badge-pending">Pendente</div>
+      </div>
+    </div>
+
+    <!-- Reconciliation Table -->
+    <div class="card">
+      <table class="recon-table" id="recon-table">
+        <thead>
+          <tr>
+            <th class="col-tipo">Tipo Pagamento</th>
+            <th class="col-sistema">Sistema<br><small>(Vissmed)</small></th>
+            <th class="col-tmm">Extrato TMM</th>
+            <th class="col-brg">Extrato BRG</th>
+            <th class="col-extrato">Total Extrato</th>
+            <th class="col-dif">Diferença</th>
+          </tr>
+        </thead>
+        <tbody id="recon-body">
+          <!-- Rows injected by JS -->
+        </tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td class="col-tipo"><strong>TOTAL</strong></td>
+            <td class="col-sistema" id="total-sistema">-</td>
+            <td class="col-tmm" id="total-tmm">-</td>
+            <td class="col-brg" id="total-brg">-</td>
+            <td class="col-extrato" id="total-extrato">-</td>
+            <td class="col-dif" id="total-dif">-</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- Notes -->
+    <div class="card notes-card">
+      <div class="notes-row">
+        <label for="notes-input">📝 Observações:</label>
+        <textarea id="notes-input" placeholder="Adicione observações sobre o dia..." rows="2"></textarea>
+      </div>
+    </div>
+  </main>
+
+  <!-- MONTHLY VIEW -->
+  <main id="view-monthly" class="view">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <button class="btn btn-icon" id="btn-prev-month">◀</button>
+        <select id="month-picker" class="month-picker"></select>
+        <button class="btn btn-icon" id="btn-next-month">▶</button>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn btn-secondary" id="btn-export-csv">📥 Exportar CSV</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table class="monthly-table" id="monthly-table">
+        <thead>
+          <tr>
+            <th>Dia</th>
+            <th>Sem</th>
+            <th>Dinheiro</th>
+            <th>Crédito</th>
+            <th>Débito</th>
+            <th>PIX</th>
+            <th>Convênio</th>
+            <th>Total Sistema</th>
+            <th>Total Extrato</th>
+            <th>Diferença</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="monthly-body">
+        </tbody>
+        <tfoot>
+          <tr class="total-row" id="monthly-totals">
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- Monthly Summary Cards -->
+    <div class="summary-cards" id="summary-cards">
+    </div>
+  </main>
+
+  <!-- VISSMED IMPORT MODAL -->
+  <div id="import-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Importar do Vissmed</h2>
+        <button class="btn btn-icon modal-close" id="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Cole abaixo o conteúdo da página "Saldo Geral dos Caixas" do Vissmed:</p>
+        <textarea id="vissmed-paste" rows="10" placeholder="Cole o texto aqui..."></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm">Importar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
