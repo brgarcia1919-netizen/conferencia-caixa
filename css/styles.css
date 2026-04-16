@@ -524,6 +524,35 @@ body {
   .input-extrato { max-width: 100px; font-size: 0.8rem; }
 }
 
+/* ── MERGED PIX INPUTS ── */
+.merged-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.merged-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.merged-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  min-width: 36px;
+  text-align: right;
+}
+
+.merged-inputs .input-extrato {
+  max-width: 100px;
+  font-size: 0.82rem;
+  padding: 4px 8px;
+}
+
 /* ── PRINT ── */
 @media print {
   .header { position: static; }

@@ -3,8 +3,8 @@
 // ═══════════════════════════════════════════════════
 
 import {
-  PAYMENT_TYPES, formatBRL, loadMonth, getDayOfWeek, isWeekend,
-  calcExtratoTotal, calcDiferenca, calcTotals, calcStatus
+  PAYMENT_TYPES, DISPLAY_TYPES, formatBRL, loadMonth, getDayOfWeek, isWeekend,
+  calcExtratoTotal, calcDiferenca, calcTotals, calcStatus, getDisplayValues
 } from './data.js';
 import { el } from './ui-components.js';
 
@@ -15,7 +15,7 @@ export async function renderMonthly(year, month, onDayClick) {
 
   let grandSistema = 0, grandExtrato = 0, grandDif = 0;
   const typeTotals = {};
-  PAYMENT_TYPES.forEach(t => typeTotals[t.key] = { dif: 0 });
+  DISPLAY_TYPES.forEach(t => typeTotals[t.key] = { dif: 0 });
 
   days.forEach((day, i) => {
     const dayNum = i + 1;
@@ -33,8 +33,9 @@ export async function renderMonthly(year, month, onDayClick) {
     grandExtrato += totalExt;
     grandDif += totalDif;
 
-    PAYMENT_TYPES.forEach(t => {
-      typeTotals[t.key].dif += difs[t.key] || 0;
+    const dispRows = getDisplayValues(day);
+    dispRows.forEach(r => {
+      typeTotals[r.key].dif += r.dif || 0;
     });
 
     const tr = el('tr', {
@@ -45,8 +46,8 @@ export async function renderMonthly(year, month, onDayClick) {
     tr.appendChild(el('td', { textContent: String(dayNum).padStart(2, '0') }));
     tr.appendChild(el('td', { textContent: dow }));
 
-    PAYMENT_TYPES.filter(t => t.key !== 'pix_conta').forEach(t => {
-      const d = difs[t.key] || 0;
+    dispRows.forEach(r => {
+      const d = r.dif || 0;
       const td = el('td');
       if (noData) {
         td.textContent = '-';
@@ -80,7 +81,7 @@ export async function renderMonthly(year, month, onDayClick) {
   const tfoot = document.getElementById('monthly-totals');
   tfoot.innerHTML = '';
   tfoot.appendChild(el('td', { textContent: 'TOTAL', colspan: '2' }));
-  PAYMENT_TYPES.filter(t => t.key !== 'pix_conta').forEach(t => {
+  DISPLAY_TYPES.forEach(t => {
     const d = Math.round(typeTotals[t.key].dif * 100) / 100;
     const td = el('td');
     td.textContent = Math.abs(d) < 0.01 ? '✓' : `${d > 0 ? '+' : ''}${formatBRL(d)}`;
@@ -99,7 +100,7 @@ function renderSummaryCards(typeTotals, grandDif) {
   const container = document.getElementById('summary-cards');
   container.innerHTML = '';
 
-  PAYMENT_TYPES.filter(t => t.key !== 'pix_conta').forEach(t => {
+  DISPLAY_TYPES.forEach(t => {
     const dif = Math.round(typeTotals[t.key].dif * 100) / 100;
     const isOk = Math.abs(dif) < 0.01;
     container.appendChild(el('div', { className: `summary-card ${isOk ? 'ok' : 'divergent'}` }, [

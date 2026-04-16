@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════
 // DAILY RECONCILIATION VIEW (async/Supabase)
+// PIX Maquininha + PIX Conta merged into single "PIX" row
 // ═══════════════════════════════════════════════════
 
 import {
-  PAYMENT_TYPES, formatBRL, parseBRL, loadDay, saveDay,
-  calcExtratoTotal, calcDiferenca, calcTotals, calcStatus
+  PAYMENT_TYPES, DISPLAY_TYPES, formatBRL, parseBRL, loadDay, saveDay,
+  calcExtratoTotal, calcTotals, calcStatus, getDisplayValues
 } from './data.js';
 import { el, createMoneyInput, createDifBadge, createStatusBadge } from './ui-components.js';
 
@@ -22,45 +23,70 @@ function renderTable() {
   const tbody = document.getElementById('recon-body');
   tbody.innerHTML = '';
 
-  const extrato = calcExtratoTotal(currentDay);
-  const difs = calcDiferenca(currentDay);
+  const displayRows = getDisplayValues(currentDay);
 
-  PAYMENT_TYPES.forEach(type => {
-    const sistVal = currentDay.sistema[type.key] || 0;
-    const tmmVal = currentDay.extrato_tmm[type.key] || 0;
-    const brgVal = currentDay.extrato_brg[type.key] || 0;
-    const extVal = extrato[type.key];
-    const difVal = difs[type.key];
-
+  displayRows.forEach(row => {
     const tr = el('tr', {}, [
+      // Tipo
       el('td', { className: 'col-tipo' }, [
-        el('span', {}, [`${type.icon} ${type.label}`]),
+        el('span', {}, [`${row.icon} ${row.label}`]),
       ]),
+      // Sistema
       el('td', { className: 'col-sistema' }, [
-        el('span', { className: 'val-sistema', textContent: formatBRL(sistVal) }),
+        el('span', { className: 'val-sistema', textContent: formatBRL(row.sistema) }),
       ]),
+      // TMM input
       el('td', { className: 'col-tmm' }, [
-        createMoneyInput(tmmVal, 'tmm', 'TMM', (e) => {
-          currentDay.extrato_tmm[type.key] = parseBRL(e.target.value);
-          onDataChange();
-        }),
+        row.merged
+          ? createMergedInputs(row.mergeKeys, 'tmm', 'TMM')
+          : createMoneyInput(row.tmm, 'tmm', 'TMM', (e) => {
+              currentDay.extrato_tmm[row.key] = parseBRL(e.target.value);
+              onDataChange();
+            }),
       ]),
+      // BRG input
       el('td', { className: 'col-brg' }, [
-        createMoneyInput(brgVal, 'brg', 'BRG', (e) => {
-          currentDay.extrato_brg[type.key] = parseBRL(e.target.value);
-          onDataChange();
-        }),
+        row.merged
+          ? createMergedInputs(row.mergeKeys, 'brg', 'BRG')
+          : createMoneyInput(row.brg, 'brg', 'BRG', (e) => {
+              currentDay.extrato_brg[row.key] = parseBRL(e.target.value);
+              onDataChange();
+            }),
       ]),
+      // Extrato Total
       el('td', { className: 'col-extrato' }, [
-        el('span', { className: 'val-extrato', textContent: formatBRL(extVal) }),
+        el('span', { className: 'val-extrato', textContent: formatBRL(row.extrato) }),
       ]),
-      el('td', { className: 'col-dif' }, [createDifBadge(difVal)]),
+      // Diferença
+      el('td', { className: 'col-dif' }, [createDifBadge(row.dif)]),
     ]);
 
     tbody.appendChild(tr);
   });
 
   updateTotals();
+}
+
+// Creates stacked inputs for merged PIX row (maquininha + conta)
+function createMergedInputs(mergeKeys, cssClass, placeholder) {
+  const source = cssClass === 'tmm' ? 'extrato_tmm' : 'extrato_brg';
+  const container = el('div', { className: 'merged-inputs' });
+
+  mergeKeys.forEach((key, i) => {
+    const label = key === 'pix_maquininha' ? 'Maq' : 'Conta';
+    const val = currentDay[source]?.[key] || 0;
+
+    const wrapper = el('div', { className: 'merged-input-row' }, [
+      el('span', { className: 'merged-label', textContent: label }),
+      createMoneyInput(val, cssClass, `${placeholder} ${label}`, (e) => {
+        currentDay[source][key] = parseBRL(e.target.value);
+        onDataChange();
+      }),
+    ]);
+    container.appendChild(wrapper);
+  });
+
+  return container;
 }
 
 function updateTotals() {
@@ -99,20 +125,8 @@ function renderNotes() {
 }
 
 function onDataChange() {
-  const extrato = calcExtratoTotal(currentDay);
-  const difs = calcDiferenca(currentDay);
-  const rows = document.querySelectorAll('#recon-body tr');
-
-  PAYMENT_TYPES.forEach((type, i) => {
-    const row = rows[i];
-    if (!row) return;
-    const extCell = row.querySelector('.col-extrato .val-extrato');
-    if (extCell) extCell.textContent = formatBRL(extrato[type.key]);
-    const difCell = row.querySelector('.col-dif');
-    if (difCell) { difCell.innerHTML = ''; difCell.appendChild(createDifBadge(difs[type.key])); }
-  });
-
-  updateTotals();
+  // Re-render the whole table (simpler than updating merged rows individually)
+  renderTable();
   renderStatus();
   debouncedSave();
 }

@@ -13,6 +13,37 @@ export const PAYMENT_TYPES = [
   { key: 'convenio', label: 'Convênio', icon: '🏥' },
 ];
 
+// Display types: PIX Maquininha + PIX Conta merged into one "PIX" row
+export const DISPLAY_TYPES = [
+  { key: 'dinheiro', label: 'Dinheiro', icon: '💵', merged: false },
+  { key: 'credito', label: 'Crédito', icon: '💳', merged: false },
+  { key: 'debito', label: 'Débito', icon: '💳', merged: false },
+  { key: 'pix', label: 'PIX', icon: '📱', merged: true, mergeKeys: ['pix_maquininha', 'pix_conta'] },
+  { key: 'convenio', label: 'Convênio', icon: '🏥', merged: false },
+];
+
+// Get display values for a day (merging PIX)
+export function getDisplayValues(day) {
+  const extrato = calcExtratoTotal(day);
+  const rows = [];
+  for (const dt of DISPLAY_TYPES) {
+    if (dt.merged) {
+      const sistVal = dt.mergeKeys.reduce((s, k) => s + (day.sistema?.[k] || 0), 0);
+      const extVal = dt.mergeKeys.reduce((s, k) => s + (extrato[k] || 0), 0);
+      const tmmVal = dt.mergeKeys.reduce((s, k) => s + (day.extrato_tmm?.[k] || 0), 0);
+      const brgVal = dt.mergeKeys.reduce((s, k) => s + (day.extrato_brg?.[k] || 0), 0);
+      rows.push({ ...dt, sistema: sistVal, extrato: extVal, tmm: tmmVal, brg: brgVal, dif: Math.round((sistVal - extVal) * 100) / 100 });
+    } else {
+      const sistVal = day.sistema?.[dt.key] || 0;
+      const extVal = extrato[dt.key] || 0;
+      const tmmVal = day.extrato_tmm?.[dt.key] || 0;
+      const brgVal = day.extrato_brg?.[dt.key] || 0;
+      rows.push({ ...dt, sistema: sistVal, extrato: extVal, tmm: tmmVal, brg: brgVal, dif: Math.round((sistVal - extVal) * 100) / 100 });
+    }
+  }
+  return rows;
+}
+
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 // ── Helpers ──
@@ -97,11 +128,11 @@ export function calcTotals(payments) {
 }
 
 export function calcStatus(day) {
-  const difs = calcDiferenca(day);
+  const displayRows = getDisplayValues(day);
   const totalSist = calcTotals(day.sistema);
   const totalExt = calcTotals(calcExtratoTotal(day));
   if (totalSist === 0 && totalExt === 0) return 'pendente';
-  const hasDif = Object.values(difs).some(v => Math.abs(v) > 0.01);
+  const hasDif = displayRows.some(r => Math.abs(r.dif) > 0.01);
   return hasDif ? 'divergente' : 'conferido';
 }
 
