@@ -538,19 +538,20 @@ body {
 }
 
 .merged-label {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  min-width: 36px;
+  min-width: 28px;
   text-align: right;
 }
 
 .merged-inputs .input-extrato {
-  max-width: 100px;
-  font-size: 0.82rem;
-  padding: 4px 8px;
+  max-width: 130px;
+  width: 100%;
+  font-size: 0.9rem;
+  padding: 6px 10px;
 }
 
 /* ── PRINT ── */
