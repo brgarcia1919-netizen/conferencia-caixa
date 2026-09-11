@@ -8,11 +8,11 @@ import { el } from './ui-components.js';
 import { formatBRL } from './data.js';
 
 // PIX Maquininha + PIX Conta juntos no bucket "pix" (igual view mensal)
+// Dinheiro e Convênio não passam pelos bancos — omitidos aqui.
 const FORMAS = [
   { key: 'credito', label: 'Crédito', icon: '💳' },
   { key: 'debito', label: 'Débito', icon: '💳' },
   { key: 'pix', label: 'PIX', icon: '📱' },
-  { key: 'convenio', label: 'Convênio', icon: '🏥' },
 ];
 
 const NS_ATENDENTE = {
@@ -127,14 +127,14 @@ function render() {
   const table = el('table', { className: 'monthly-table' });
   const thead = el('thead');
   const hr = el('tr');
-  ['Data', 'Crédito', 'Débito', 'PIX', 'Convênio', ''].forEach(h => hr.appendChild(el('th', { textContent: h })));
+  ['Data', 'Crédito', 'Débito', 'PIX', ''].forEach(h => hr.appendChild(el('th', { textContent: h })));
   thead.appendChild(hr);
   table.appendChild(thead);
 
   const tbody = el('tbody');
   if (soDivergentes.length === 0) {
     const trE = el('tr');
-    trE.appendChild(el('td', { colspan: '6', style: 'text-align:center;padding:24px;color:var(--success)', textContent: '✓ Nenhum dia com divergência.' }));
+    trE.appendChild(el('td', { colspan: '5', style: 'text-align:center;padding:24px;color:var(--success)', textContent: '✓ Nenhum dia com divergência.' }));
     tbody.appendChild(trE);
   }
   soDivergentes.forEach(d => {
@@ -158,7 +158,7 @@ function render() {
 
     if (isSelected) {
       const trDrill = el('tr');
-      const td = el('td', { colspan: '6', style: 'background:#f8fafc;padding:0' });
+      const td = el('td', { colspan: '5', style: 'background:#f8fafc;padding:0' });
       td.appendChild(buildDrillDown(d));
       trDrill.appendChild(td);
       tbody.appendChild(trDrill);
