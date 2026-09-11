@@ -247,9 +247,62 @@ function matchDay(vDay, bDay) {
   return { vUnmatched, bUnmatched };
 }
 
+const FORMA_LBL = { credito: 'Crédito', debito: 'Débito', pix: 'PIX' };
+
 function buildDrillDown(dayRow) {
   const wrap = el('div', { style: 'padding:16px 20px' });
   const { difs } = difsForDay(dayRow);
+
+  // Passo 1: intra-forma matching, coletar não-pareados por forma
+  const perForma = {};
+  FORMAS.forEach(f => {
+    const vDay = vissmedRows.filter(v => v.data === dayRow.data && bucket(v.forma) === f.key);
+    const bDay = bancoRows.filter(b => b.data === dayRow.data && bucket(b.forma) === f.key);
+    perForma[f.key] = matchDay(vDay, bDay);
+  });
+
+  // Passo 2: cross-forma matching — Vissmed forma X ↔ Banco forma Y
+  // Empareia por (valor exato, mesma data) — se casar, era forma trocada
+  const crossPairs = []; // {v, b, vForma, bForma}
+  const consumedV = new Set();
+  const consumedB = new Set();
+  FORMAS.forEach(fv => {
+    perForma[fv.key].vUnmatched.forEach(v => {
+      if (consumedV.has(v.id)) return;
+      const val = parseFloat(v.valor_liquido);
+      FORMAS.forEach(fb => {
+        if (fb.key === fv.key) return;
+        perForma[fb.key].bUnmatched.forEach(b => {
+          if (consumedB.has(b.id)) return;
+          if (Math.abs(parseFloat(b.valor_bruto) - val) < 0.01) {
+            const nameOk = b.pagador ? nameSim(v.paciente, b.pagador) > 0.3 : true;
+            const nsOk = b.ns_maquininha && NS_ATENDENTE[b.ns_maquininha] === v.atendente;
+            if (nameOk || nsOk || !b.pagador) {
+              crossPairs.push({ v, b, vForma: fv.key, bForma: fb.key });
+              consumedV.add(v.id);
+              consumedB.add(b.id);
+            }
+          }
+        });
+      });
+    });
+  });
+
+  // Renderiza cross-forma no topo
+  if (crossPairs.length > 0) {
+    const secX = el('div', { style: 'margin-bottom:20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 16px' });
+    secX.appendChild(el('div', { style: 'font-weight:600;margin-bottom:8px;color:#9a3412', innerHTML: `🔄 Forma trocada (${crossPairs.length}) — casaram entre formas diferentes` }));
+    secX.appendChild(el('div', { style: 'font-size:0.85em;color:var(--text-muted);margin-bottom:10px', textContent: 'Cliente pagou uma forma, atendente lançou outra. Valor bate mas a categoria não.' }));
+    crossPairs.forEach(p => {
+      const atd = p.v.atendente || (p.b.ns_maquininha && NS_ATENDENTE[p.b.ns_maquininha]) || '?';
+      const line = el('div', { style: 'padding:8px 10px;background:white;border-radius:6px;font-size:0.85em;margin-bottom:6px;border-left:3px solid #f97316' });
+      line.innerHTML = `<strong>R$ ${formatBRL(parseFloat(p.v.valor_liquido))}</strong> · <strong>${shortName(atd)}</strong><br>` +
+        `<span style="color:var(--text-muted)">Vissmed: <strong>${FORMA_LBL[p.vForma]}</strong> · OS ${(p.v.os || '').split('/')[0]} · ${(p.v.paciente || '').slice(0, 30)}</span><br>` +
+        `<span style="color:var(--text-muted)">Banco: <strong>${FORMA_LBL[p.bForma]}</strong> · ${FONTE_LABELS[p.b.fonte]} · ${p.b.pagador ? 'pag: ' + p.b.pagador.slice(0, 30) : (p.b.ns_maquininha || '-')}</span>`;
+      secX.appendChild(line);
+    });
+    wrap.appendChild(secX);
+  }
 
   FORMAS.forEach(f => {
     const x = difs[f.key];
@@ -261,9 +314,10 @@ function buildDrillDown(dayRow) {
     sec.appendChild(el('div', { style: 'font-weight:600;margin-bottom:8px', innerHTML: `${f.icon} ${f.label} · Sistema R$${formatBRL(x.sistema)} vs Banco R$${formatBRL(x.banco)} → <span class="status-div">${sign}R$${formatBRL(x.dif)}</span>` }));
     sec.appendChild(el('div', { style: 'font-size:0.85em;color:var(--text-muted);margin-bottom:12px', innerHTML: explain }));
 
-    const vDay = vissmedRows.filter(v => v.data === dayRow.data && bucket(v.forma) === f.key);
-    const bDay = bancoRows.filter(b => b.data === dayRow.data && bucket(b.forma) === f.key);
-    const { vUnmatched, bUnmatched } = matchDay(vDay, bDay);
+    // Filtrar unmatched removendo os que viraram cross-forma
+    const vUnmatched = perForma[f.key].vUnmatched.filter(v => !consumedV.has(v.id));
+    const bUnmatched = perForma[f.key].bUnmatched.filter(b => !consumedB.has(b.id));
+    if (vUnmatched.length === 0 && bUnmatched.length === 0) { return; }
 
     // 2 columns
     const grid = el('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:12px' });
