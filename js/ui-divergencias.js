@@ -282,13 +282,17 @@ function buildDrillDown(dayRow) {
     right.appendChild(el('div', { style: 'font-weight:600;font-size:0.9em;margin-bottom:6px;color:var(--danger)', innerHTML: `🏦 Banco sem par no Vissmed (${bUnmatched.length}) — quem deveria ter lançado:` }));
     if (bUnmatched.length === 0) right.appendChild(el('div', { style: 'color:var(--text-muted);font-size:0.85em', textContent: '(nenhum)' }));
     bUnmatched.sort((a, b) => parseFloat(b.valor_bruto) - parseFloat(a.valor_bruto)).forEach(b => {
-      let atd = '?';
-      if (b.ns_maquininha && NS_ATENDENTE[b.ns_maquininha]) atd = NS_ATENDENTE[b.ns_maquininha];
-      else if (b.meio_captura === 'E-commerce') atd = 'Call Center (telefonistas)';
-      else if (b.fonte === 'stone_tmm_conta') atd = 'PIX Conta (chave direta)';
+      const isEcom = b.meio_captura === 'E-commerce';
+      let fonteLbl = FONTE_LABELS[b.fonte] || b.fonte;
+      if (isEcom) fonteLbl += ' (link de pagamento)';
+      let atdLine = '';
+      if (b.ns_maquininha && NS_ATENDENTE[b.ns_maquininha]) {
+        atdLine = `NS ${b.ns_maquininha.slice(-6)} → <strong>${shortName(NS_ATENDENTE[b.ns_maquininha])}</strong>`;
+      } else if (b.pagador) {
+        atdLine = `pag: <strong>${b.pagador.slice(0, 30)}</strong>`;
+      }
       const div = el('div', { style: 'padding:6px 8px;background:#fef2f2;border-radius:6px;font-size:0.85em;margin-bottom:4px' });
-      const nsInfo = b.ns_maquininha ? `NS ${b.ns_maquininha.slice(-6)} → <strong>${shortName(atd)}</strong>` : (b.pagador ? `pag: <strong>${b.pagador.slice(0, 30)}</strong> · ${atd}` : atd);
-      div.innerHTML = `<strong>R$ ${formatBRL(parseFloat(b.valor_bruto))}</strong> · ${(b.hora || '').slice(0, 5)} · ${FONTE_LABELS[b.fonte] || b.fonte}<br><span style="color:var(--text-muted)">${nsInfo}</span>`;
+      div.innerHTML = `<strong>R$ ${formatBRL(parseFloat(b.valor_bruto))}</strong> · ${(b.hora || '').slice(0, 5)} · ${fonteLbl}` + (atdLine ? `<br><span style="color:var(--text-muted)">${atdLine}</span>` : '');
       right.appendChild(div);
     });
     grid.appendChild(right);
