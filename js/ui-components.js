@@ -51,6 +51,36 @@ export function createMoneyInput(value, cssClass, placeholder, onChange) {
 function parseInputValue(str) {
   if (!str || str.trim() === '' || str === '-') return 0;
   let clean = str.replace(/\s/g, '');
+
+  // Formula mode: starts with "=" OR contains +/-/*/÷ operators (Excel-like)
+  const hasOperator = /[+\-*/x]/.test(clean.slice(1));
+  const isFormula = clean.startsWith('=') || hasOperator;
+
+  if (isFormula) {
+    // Remove leading "="
+    if (clean.startsWith('=')) clean = clean.slice(1);
+    // Convert BR decimal notation to JS (1.234,56 → 1234.56)
+    // Strategy: if comma present, treat as decimal separator; dots are thousands
+    // But since users write "100+200,50", we need to handle each number
+    // Split by operators, convert each number, then re-join
+    clean = clean.replace(/x/gi, '*').replace(/÷/g, '/');
+    const parts = clean.split(/([+\-*/()])/);
+    const converted = parts.map(p => {
+      if (/^[+\-*/()]$/.test(p) || p === '') return p;
+      // Number: strip dots (thousands) and convert comma to dot
+      if (p.includes(',')) return p.replace(/\./g, '').replace(',', '.');
+      return p;
+    }).join('');
+    try {
+      // Only allow safe arithmetic characters
+      if (!/^[0-9+\-*/(). ]+$/.test(converted)) return 0;
+      const result = Function('"use strict"; return (' + converted + ')')();
+      if (isNaN(result) || !isFinite(result)) return 0;
+      return Math.round(result * 100) / 100;
+    } catch { return 0; }
+  }
+
+  // Plain number
   if (clean.includes(',')) {
     clean = clean.replace(/\./g, '').replace(',', '.');
   }
