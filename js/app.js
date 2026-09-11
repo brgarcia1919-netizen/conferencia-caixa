@@ -5,6 +5,7 @@
 import { formatDate, parseDate, getDayOfWeek } from './data.js';
 import { renderDaily, updateSistema } from './ui-daily.js';
 import { renderMonthly } from './ui-monthly.js';
+import { renderDivergencias } from './ui-divergencias.js';
 import { setupImportModal } from './vissmed-parser.js';
 import { exportMonthCSV } from './export.js';
 import { checkAuth, signOut } from './supabase.js';
@@ -71,6 +72,7 @@ async function init() {
     if (e.key === 'ArrowRight') changeDay(1);
     if (e.key === '1') switchView('daily');
     if (e.key === '2') switchView('monthly');
+    if (e.key === '3') switchView('divergencias');
   });
 }
 
@@ -81,6 +83,9 @@ async function switchView(view) {
   document.getElementById(`view-${view}`).classList.add('active');
   if (view === 'monthly') {
     await renderMonthly(currentMonth.year, currentMonth.month, navigateToDay);
+  }
+  if (view === 'divergencias') {
+    await renderDivergencias();
   }
 }
 
