@@ -77,8 +77,32 @@ export function formatBRL(value) {
 }
 
 export function parseBRL(str) {
+  if (typeof str === 'number') return Math.round(str * 100) / 100;
   if (!str || str.trim() === '' || str === '-') return 0;
   let clean = str.replace(/\s/g, '');
+
+  // Formula mode: starts with "=" OR contains arithmetic operators (Excel-like)
+  const hasOperator = /[+\-*/x÷]/.test(clean.slice(1));
+  const isFormula = clean.startsWith('=') || hasOperator;
+
+  if (isFormula) {
+    if (clean.startsWith('=')) clean = clean.slice(1);
+    clean = clean.replace(/x/gi, '*').replace(/÷/g, '/');
+    // Convert BR numbers inside expression: 1.234,56 → 1234.56
+    const parts = clean.split(/([+\-*/()])/);
+    const converted = parts.map(p => {
+      if (/^[+\-*/()]$/.test(p) || p === '') return p;
+      if (p.includes(',')) return p.replace(/\./g, '').replace(',', '.');
+      return p;
+    }).join('');
+    try {
+      if (!/^[0-9+\-*/(). ]+$/.test(converted)) return 0;
+      const result = Function('"use strict"; return (' + converted + ')')();
+      if (isNaN(result) || !isFinite(result)) return 0;
+      return Math.round(result * 100) / 100;
+    } catch { return 0; }
+  }
+
   if (clean.includes(',')) {
     clean = clean.replace(/\./g, '').replace(',', '.');
   }
