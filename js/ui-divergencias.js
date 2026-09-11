@@ -169,33 +169,101 @@ function render() {
   container.appendChild(card);
 }
 
+function normName(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(x => x.length > 2);
+}
+function nameSim(a, b) {
+  const A = new Set(normName(a));
+  const B = new Set(normName(b));
+  if (A.size === 0 || B.size === 0) return 0;
+  let hit = 0; A.forEach(x => { if (B.has(x)) hit++; });
+  return hit / Math.min(A.size, B.size);
+}
+
+function matchDay(vDay, bDay) {
+  const bUsed = new Array(bDay.length).fill(false);
+  const vUsed = new Array(vDay.length).fill(false);
+
+  // Pass 1: 1-para-1 valor exato
+  vDay.forEach((v, i) => {
+    const val = parseFloat(v.valor_liquido);
+    const idx = bDay.findIndex((b, j) => !bUsed[j] && Math.abs(parseFloat(b.valor_bruto) - val) < 0.01);
+    if (idx >= 0) { bUsed[idx] = true; vUsed[i] = true; }
+  });
+
+  // Pass 2: N-para-1 (subset de banco soma = 1 Vissmed) — nome do pagador confirma quando existe
+  vDay.forEach((v, i) => {
+    if (vUsed[i]) return;
+    const target = Math.round(parseFloat(v.valor_liquido) * 100);
+    const availIdxs = bDay.map((_, j) => j).filter(j => !bUsed[j]);
+    // Tenta pares primeiro
+    let found = null;
+    for (let a = 0; a < availIdxs.length && !found; a++) {
+      for (let b = a + 1; b < availIdxs.length && !found; b++) {
+        const s = Math.round((parseFloat(bDay[availIdxs[a]].valor_bruto) + parseFloat(bDay[availIdxs[b]].valor_bruto)) * 100);
+        if (s === target) {
+          const sim = Math.max(nameSim(v.paciente, bDay[availIdxs[a]].pagador), nameSim(v.paciente, bDay[availIdxs[b]].pagador));
+          if (sim > 0.3 || !bDay[availIdxs[a]].pagador) found = [availIdxs[a], availIdxs[b]];
+        }
+      }
+    }
+    // Trios
+    if (!found) {
+      for (let a = 0; a < availIdxs.length && !found; a++) {
+        for (let b = a + 1; b < availIdxs.length && !found; b++) {
+          for (let c = b + 1; c < availIdxs.length && !found; c++) {
+            const s = Math.round((parseFloat(bDay[availIdxs[a]].valor_bruto) + parseFloat(bDay[availIdxs[b]].valor_bruto) + parseFloat(bDay[availIdxs[c]].valor_bruto)) * 100);
+            if (s === target) {
+              const sim = Math.max(nameSim(v.paciente, bDay[availIdxs[a]].pagador), nameSim(v.paciente, bDay[availIdxs[b]].pagador), nameSim(v.paciente, bDay[availIdxs[c]].pagador));
+              if (sim > 0.3 || !bDay[availIdxs[a]].pagador) found = [availIdxs[a], availIdxs[b], availIdxs[c]];
+            }
+          }
+        }
+      }
+    }
+    if (found) { found.forEach(j => bUsed[j] = true); vUsed[i] = true; }
+  });
+
+  // Pass 3: 1-para-N (1 banco = soma de vários Vissmed do mesmo paciente)
+  bDay.forEach((b, j) => {
+    if (bUsed[j]) return;
+    const target = Math.round(parseFloat(b.valor_bruto) * 100);
+    const availIdxs = vDay.map((_, i) => i).filter(i => !vUsed[i]);
+    let found = null;
+    for (let a = 0; a < availIdxs.length && !found; a++) {
+      for (let bi = a + 1; bi < availIdxs.length && !found; bi++) {
+        const s = Math.round((parseFloat(vDay[availIdxs[a]].valor_liquido) + parseFloat(vDay[availIdxs[bi]].valor_liquido)) * 100);
+        if (s === target) {
+          const sim = b.pagador ? Math.max(nameSim(vDay[availIdxs[a]].paciente, b.pagador), nameSim(vDay[availIdxs[bi]].paciente, b.pagador)) : 1;
+          if (sim > 0.3) found = [availIdxs[a], availIdxs[bi]];
+        }
+      }
+    }
+    if (found) { found.forEach(i => vUsed[i] = true); bUsed[j] = true; }
+  });
+
+  const vUnmatched = vDay.filter((_, i) => !vUsed[i]);
+  const bUnmatched = bDay.filter((_, i) => !bUsed[i]);
+  return { vUnmatched, bUnmatched };
+}
+
 function buildDrillDown(dayRow) {
   const wrap = el('div', { style: 'padding:16px 20px' });
   const { difs } = difsForDay(dayRow);
 
-  // For each forma with divergence, show unmatched tx
   FORMAS.forEach(f => {
     const x = difs[f.key];
     if (Math.abs(x.dif) < 0.01) return;
 
     const sec = el('div', { style: 'margin-bottom:20px;background:white;border-radius:8px;padding:12px 16px;border:1px solid var(--border)' });
     const sign = x.dif > 0 ? '+' : '';
-    const explain = x.dif > 0 ? `Sistema tem <strong>R$${formatBRL(x.dif)} A MAIS</strong> → provavelmente sobrou lançamento no Vissmed OU falta transação no banco` : `Sistema tem <strong>R$${formatBRL(-x.dif)} A MENOS</strong> → provavelmente falta lançar no Vissmed OU sobra tx no banco`;
+    const explain = x.dif > 0 ? `Sistema tem <strong>R$${formatBRL(x.dif)} A MAIS</strong> → sobrou no Vissmed OU falta no banco` : `Sistema tem <strong>R$${formatBRL(-x.dif)} A MENOS</strong> → falta lançar no Vissmed OU sobra no banco`;
     sec.appendChild(el('div', { style: 'font-weight:600;margin-bottom:8px', innerHTML: `${f.icon} ${f.label} · Sistema R$${formatBRL(x.sistema)} vs Banco R$${formatBRL(x.banco)} → <span class="status-div">${sign}R$${formatBRL(x.dif)}</span>` }));
     sec.appendChild(el('div', { style: 'font-size:0.85em;color:var(--text-muted);margin-bottom:12px', innerHTML: explain }));
 
-    // Match tx of this forma this day, mark unmatched
     const vDay = vissmedRows.filter(v => v.data === dayRow.data && bucket(v.forma) === f.key);
     const bDay = bancoRows.filter(b => b.data === dayRow.data && bucket(b.forma) === f.key);
-    const bUsed = new Array(bDay.length).fill(false);
-    const vUnmatched = [];
-    vDay.forEach(v => {
-      const val = parseFloat(v.valor_liquido);
-      let idx = bDay.findIndex((b, i) => !bUsed[i] && Math.abs(parseFloat(b.valor_bruto) - val) < 0.01);
-      if (idx >= 0) bUsed[idx] = true;
-      else vUnmatched.push(v);
-    });
-    const bUnmatched = bDay.filter((_, i) => !bUsed[i]);
+    const { vUnmatched, bUnmatched } = matchDay(vDay, bDay);
 
     // 2 columns
     const grid = el('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:12px' });
@@ -214,9 +282,12 @@ function buildDrillDown(dayRow) {
     right.appendChild(el('div', { style: 'font-weight:600;font-size:0.9em;margin-bottom:6px;color:var(--danger)', innerHTML: `🏦 Banco sem par no Vissmed (${bUnmatched.length}) — quem deveria ter lançado:` }));
     if (bUnmatched.length === 0) right.appendChild(el('div', { style: 'color:var(--text-muted);font-size:0.85em', textContent: '(nenhum)' }));
     bUnmatched.sort((a, b) => parseFloat(b.valor_bruto) - parseFloat(a.valor_bruto)).forEach(b => {
-      const atd = b.ns_maquininha && NS_ATENDENTE[b.ns_maquininha] ? NS_ATENDENTE[b.ns_maquininha] : '?';
+      let atd = '?';
+      if (b.ns_maquininha && NS_ATENDENTE[b.ns_maquininha]) atd = NS_ATENDENTE[b.ns_maquininha];
+      else if (b.meio_captura === 'E-commerce') atd = 'Call Center (telefonistas)';
+      else if (b.fonte === 'stone_tmm_conta') atd = 'PIX Conta (chave direta)';
       const div = el('div', { style: 'padding:6px 8px;background:#fef2f2;border-radius:6px;font-size:0.85em;margin-bottom:4px' });
-      const nsInfo = b.ns_maquininha ? `NS ${b.ns_maquininha.slice(-6)} → <strong>${shortName(atd)}</strong>` : (b.pagador ? `pag: ${b.pagador.slice(0, 30)}` : '(sem identificação)');
+      const nsInfo = b.ns_maquininha ? `NS ${b.ns_maquininha.slice(-6)} → <strong>${shortName(atd)}</strong>` : (b.pagador ? `pag: <strong>${b.pagador.slice(0, 30)}</strong> · ${atd}` : atd);
       div.innerHTML = `<strong>R$ ${formatBRL(parseFloat(b.valor_bruto))}</strong> · ${(b.hora || '').slice(0, 5)} · ${FONTE_LABELS[b.fonte] || b.fonte}<br><span style="color:var(--text-muted)">${nsInfo}</span>`;
       right.appendChild(div);
     });
