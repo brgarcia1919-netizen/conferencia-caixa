@@ -167,6 +167,10 @@ export default async function handler(req, res) {
       await supaReq('transacoes_vissmed', 'POST', allRows.slice(i, i + CHUNK));
     }
 
+    // Recompute conferencia_dias p/ cada data (atualiza Diario/Mensal)
+    const { recomputeDay } = await import('./recompute-day.js');
+    for (const d of datas) await recomputeDay(d);
+
     return res.status(200).json({ ok: true, dias: datas.length, tx_total: allRows.length, por_dia: porDia, erros });
   } catch (e) {
     return res.status(500).json({ error: String(e), stack: e.stack });

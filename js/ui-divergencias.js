@@ -267,6 +267,13 @@ async function handleUpload(files, statusEl) {
     }
   }
 
+  // Recompute conferencia_dias p/ cada data (atualiza Diario/Mensal)
+  statusEl.textContent = `Recalculando totais dos dias…`;
+  const uniqDates = [...new Set(allRows.map(r => r.data))];
+  for (const d of uniqDates) {
+    try { await fetch(`/api/recompute-day?data=${d}`); } catch (e) {}
+  }
+
   const perFileMsg = perFile.map(p => `${p.name} → ${p.count}`).join(' · ');
   statusEl.textContent = `✓ ${allRows.length} tx importadas (${perFileMsg}). Recarregando…`;
   statusEl.style.color = 'var(--success)';
