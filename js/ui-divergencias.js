@@ -124,9 +124,43 @@ function render() {
   const fileInput = el('input', { type: 'file', id: 'file-input-extratos', accept: '.csv,.ofx', multiple: 'multiple', style: 'display:none' });
   const btn = el('button', { className: 'btn btn-primary', textContent: '📥 Importar extratos', onClick: () => fileInput.click() });
   const statusEl = el('span', { id: 'upload-status', style: 'color:var(--text-muted);font-size:0.9em' });
+  const dateInp = el('input', { type: 'date', className: 'date-picker', id: 'vissmed-pull-date', value: new Date().toISOString().slice(0, 10) });
+  const btnVissmed = el('button', {
+    className: 'btn btn-secondary', textContent: '🔄 Atualizar Vissmed',
+    onClick: async () => {
+      const d = document.getElementById('vissmed-pull-date').value;
+      if (!d) return;
+      btnVissmed.disabled = true;
+      const orig = btnVissmed.textContent;
+      btnVissmed.textContent = '⏳ Puxando…';
+      statusEl.textContent = `Puxando Vissmed do ${d} (24 caixas)…`;
+      statusEl.style.color = 'var(--primary)';
+      try {
+        const r = await fetch(`/api/vissmed-pull?data=${d}`);
+        const j = await r.json();
+        if (j.ok) {
+          statusEl.textContent = `✓ Vissmed ${d}: ${j.tx_total} tx importadas. Recarregando…`;
+          statusEl.style.color = 'var(--success)';
+          setTimeout(() => renderDivergencias(), 800);
+        } else {
+          statusEl.textContent = 'Erro: ' + (j.error || JSON.stringify(j));
+          statusEl.style.color = 'var(--danger)';
+        }
+      } catch (e) {
+        statusEl.textContent = 'Erro rede: ' + e.message;
+        statusEl.style.color = 'var(--danger)';
+      } finally {
+        btnVissmed.disabled = false;
+        btnVissmed.textContent = orig;
+      }
+    },
+  });
   fileInput.addEventListener('change', (e) => handleUpload(e.target.files, statusEl));
   uploadLeft.appendChild(btn);
   uploadLeft.appendChild(fileInput);
+  uploadLeft.appendChild(el('span', { textContent: ' · ', style: 'color:var(--text-muted)' }));
+  uploadLeft.appendChild(dateInp);
+  uploadLeft.appendChild(btnVissmed);
   uploadLeft.appendChild(statusEl);
   uploadBar.appendChild(uploadLeft);
   container.appendChild(uploadBar);
