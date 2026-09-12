@@ -6,6 +6,7 @@
 import { getClient } from './supabase.js';
 import { el } from './ui-components.js';
 import { formatBRL } from './data.js';
+import { parseFile, readFileAsText } from './bank-parsers.js';
 
 // PIX Maquininha + PIX Conta juntos no bucket "pix" (igual view mensal)
 // Dinheiro e Convênio não passam pelos bancos — omitidos aqui.
@@ -117,6 +118,19 @@ function render() {
 
   container.appendChild(summary);
 
+  // Upload toolbar
+  const uploadBar = el('div', { className: 'toolbar', style: 'margin-bottom:16px' });
+  const uploadLeft = el('div', { className: 'toolbar-left', style: 'gap:12px;flex-wrap:wrap;align-items:center' });
+  const fileInput = el('input', { type: 'file', id: 'file-input-extratos', accept: '.csv,.ofx', multiple: 'multiple', style: 'display:none' });
+  const btn = el('button', { className: 'btn btn-primary', textContent: '📥 Importar extratos', onClick: () => fileInput.click() });
+  const statusEl = el('span', { id: 'upload-status', style: 'color:var(--text-muted);font-size:0.9em' });
+  fileInput.addEventListener('change', (e) => handleUpload(e.target.files, statusEl));
+  uploadLeft.appendChild(btn);
+  uploadLeft.appendChild(fileInput);
+  uploadLeft.appendChild(statusEl);
+  uploadBar.appendChild(uploadLeft);
+  container.appendChild(uploadBar);
+
   // Table of days with divergence
   const card = el('div', { className: 'card' });
   const title = el('div', { style: 'padding:16px 20px; border-bottom:1px solid var(--border); font-weight:600' }, [
@@ -167,6 +181,62 @@ function render() {
   table.appendChild(tbody);
   card.appendChild(table);
   container.appendChild(card);
+}
+
+async function handleUpload(files, statusEl) {
+  if (!files || files.length === 0) return;
+  statusEl.textContent = `Lendo ${files.length} arquivo(s)…`;
+  statusEl.style.color = 'var(--primary)';
+  const allRows = [];
+  const perFile = [];
+  try {
+    for (const f of files) {
+      const text = await readFileAsText(f);
+      const { fonte, rows } = parseFile(f.name, text);
+      perFile.push({ name: f.name, fonte, count: rows.length });
+      allRows.push(...rows);
+    }
+  } catch (e) {
+    statusEl.textContent = 'Erro lendo arquivo: ' + e.message;
+    statusEl.style.color = 'var(--danger)';
+    return;
+  }
+
+  if (allRows.length === 0) {
+    statusEl.textContent = 'Nenhuma transação encontrada nos arquivos.';
+    statusEl.style.color = 'var(--danger)';
+    return;
+  }
+
+  // Set de (fonte, data) que os uploads cobrem — deletar antes de reinserir
+  const scopes = new Set();
+  allRows.forEach(r => scopes.add(`${r.fonte}|${r.data}`));
+
+  statusEl.textContent = `${allRows.length} tx encontradas. Substituindo dados anteriores…`;
+
+  const client = getClient();
+  // DELETE por (fonte + data) — evita duplicar se reimportar mesmo dia
+  for (const scope of scopes) {
+    const [fonte, data] = scope.split('|');
+    await client.from('transacoes_banco').delete().eq('fonte', fonte).eq('data', data);
+  }
+
+  // INSERT em lotes
+  const CHUNK = 200;
+  for (let i = 0; i < allRows.length; i += CHUNK) {
+    const batch = allRows.slice(i, i + CHUNK);
+    const { error } = await client.from('transacoes_banco').insert(batch);
+    if (error) {
+      statusEl.textContent = `Erro salvando: ${error.message}`;
+      statusEl.style.color = 'var(--danger)';
+      return;
+    }
+  }
+
+  const perFileMsg = perFile.map(p => `${p.name} → ${p.count}`).join(' · ');
+  statusEl.textContent = `✓ ${allRows.length} tx importadas (${perFileMsg}). Recarregando…`;
+  statusEl.style.color = 'var(--success)';
+  setTimeout(() => renderDivergencias(), 800);
 }
 
 function normName(s) {
