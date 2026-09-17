@@ -35,10 +35,31 @@ function empty() {
 }
 
 export async function recomputeDay(isoDate) {
-  const [vRows, bRows] = await Promise.all([
+  const [vRows, bRows, bAllPix] = await Promise.all([
     supaGet(`transacoes_vissmed?data=eq.${isoDate}&select=forma,valor_liquido`),
-    supaGet(`transacoes_banco?data=eq.${isoDate}&ignorado=eq.false&select=fonte,forma,valor_bruto`),
+    supaGet(`transacoes_banco?data=eq.${isoDate}&ignorado=eq.false&select=id,fonte,forma,valor_bruto,pagador`),
+    // Todas as tx PIX stone_tmm_conta (nao filtradas por data) para casar estornos cross-day
+    supaGet(`transacoes_banco?fonte=eq.stone_tmm_conta&forma=eq.pix_conta&ignorado=eq.false&select=id,valor_bruto,pagador,data`),
   ]);
+
+  // Detectar pares +/- do mesmo pagador (Transferencia + Devolucao)
+  const canceledIds = new Set();
+  const groups = {};
+  bAllPix.forEach(r => {
+    if (!r.pagador) return;
+    const key = `${r.pagador}|${Math.round(Math.abs(Number(r.valor_bruto)) * 100)}`;
+    (groups[key] = groups[key] || []).push(r);
+  });
+  Object.values(groups).forEach(list => {
+    if (list.length < 2) return;
+    const pos = list.filter(x => Number(x.valor_bruto) > 0);
+    const neg = list.filter(x => Number(x.valor_bruto) < 0);
+    const n = Math.min(pos.length, neg.length);
+    for (let k = 0; k < n; k++) {
+      canceledIds.add(pos[k].id);
+      canceledIds.add(neg[k].id);
+    }
+  });
 
   const sistema = empty();
   vRows.forEach(r => {
@@ -48,9 +69,9 @@ export async function recomputeDay(isoDate) {
   const extrato_tmm = empty();
   const extrato_brg = empty();
   bRows.forEach(r => {
+    if (canceledIds.has(r.id)) return; // par estornado — cancela
     const v = Number(r.valor_bruto || 0);
-    // Devolucoes isoladas (saidas de dinheiro) nao entram no calculo
-    if (v < 0) return;
+    if (v < 0) return; // devolucao isolada — nao conta
     const dest = (r.fonte === 'stone_tmm' || r.fonte === 'stone_tmm_conta') ? extrato_tmm
                : (r.fonte === 'stone_brg' || r.fonte === 'infinite_brg') ? extrato_brg
                : null;
