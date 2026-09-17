@@ -37,7 +37,7 @@ function empty() {
 export async function recomputeDay(isoDate) {
   const [vRows, bRows] = await Promise.all([
     supaGet(`transacoes_vissmed?data=eq.${isoDate}&select=forma,valor_liquido`),
-    supaGet(`transacoes_banco?data=eq.${isoDate}&select=fonte,forma,valor_bruto`),
+    supaGet(`transacoes_banco?data=eq.${isoDate}&ignorado=eq.false&select=fonte,forma,valor_bruto`),
   ]);
 
   const sistema = empty();

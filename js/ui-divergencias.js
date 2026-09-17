@@ -54,7 +54,7 @@ export async function renderDivergencias() {
 
   const [vRes, bRes] = await Promise.all([
     getClient().from('transacoes_vissmed').select('*').order('data'),
-    getClient().from('transacoes_banco').select('*').order('data'),
+    getClient().from('transacoes_banco').select('*').eq('ignorado', false).order('data'),
   ]);
   if (vRes.error) { container.innerHTML = `Erro: ${vRes.error.message}`; return; }
   if (bRes.error) { container.innerHTML = `Erro: ${bRes.error.message}`; return; }
@@ -486,8 +486,22 @@ function buildDrillDown(dayRow) {
       } else if (b.pagador) {
         atdLine = `pag: <strong>${b.pagador.slice(0, 30)}</strong>`;
       }
-      const div = el('div', { style: 'padding:6px 8px;background:#fef2f2;border-radius:6px;font-size:0.85em;margin-bottom:4px' });
+      const div = el('div', { style: 'padding:6px 8px;background:#fef2f2;border-radius:6px;font-size:0.85em;margin-bottom:4px;position:relative' });
       div.innerHTML = `<strong>R$ ${formatBRL(parseFloat(b.valor_bruto))}</strong> · ${(b.hora || '').slice(0, 5)} · ${fonteLbl}` + (atdLine ? `<br><span style="color:var(--text-muted)">${atdLine}</span>` : '');
+      const ignoreBtn = el('button', {
+        style: 'position:absolute;top:6px;right:8px;background:transparent;border:1px solid var(--rule,#e5e7eb);color:var(--text-muted);font-size:0.75em;padding:2px 8px;border-radius:4px;cursor:pointer',
+        textContent: '✓ Estorno',
+        title: 'Marcar como estornado / ignorar dessa conferência',
+        onClick: async (e) => {
+          e.stopPropagation();
+          const motivo = prompt('Motivo pra ignorar essa tx (ex: "estornado 16/09")');
+          if (motivo === null) return;
+          const { error } = await getClient().from('transacoes_banco').update({ ignorado: true, motivo_ignore: motivo }).eq('id', b.id);
+          if (error) alert('Erro: ' + error.message);
+          else renderDivergencias();
+        },
+      });
+      div.appendChild(ignoreBtn);
       right.appendChild(div);
     });
     grid.appendChild(right);
