@@ -42,11 +42,16 @@ function parseStoneCSV(text) {
     const hora = `${m[4]}:${m[5]}:00`;
 
     const prod = get('PRODUTO');
+    const bandeira = get('BANDEIRA');
+    const prodNorm = prod.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
     let tipo;
-    if (prod === 'Credito') tipo = 'credito';
-    else if (prod === 'Debito' || prod === 'Debito Pre-pago') tipo = 'debito';
-    else if (prod === 'Pix QRcode') tipo = 'pix_maquininha';
-    else tipo = 'outro';
+    if (prodNorm.startsWith('credito') || prodNorm.startsWith('credit')) tipo = 'credito';
+    else if (prodNorm.startsWith('debito') || prodNorm.startsWith('debit')) tipo = 'debito';
+    else if (prodNorm.includes('pix')) tipo = 'pix_maquininha';
+    else if (bandeira && (bandeira.toLowerCase().includes('master') || bandeira.toLowerCase().includes('visa') || bandeira.toLowerCase().includes('elo') || bandeira.toLowerCase().includes('american'))) {
+      // Fallback: se tem bandeira de cartao mas PRODUTO nao bateu, chuta credito (mais comum)
+      tipo = 'credito';
+    } else tipo = 'outro';
 
     rows.push({
       data, hora, fonte,
