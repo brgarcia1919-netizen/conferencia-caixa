@@ -62,6 +62,12 @@ export async function renderDivergencias() {
   vissmedRows = vRes.data;
   bancoRows = bRes.data;
 
+  // Remove pares transferência/devolução do mesmo pagador (estornos)
+  const canceledIdxs = cancelEstornos(bancoRows);
+  if (canceledIdxs.size > 0) {
+    bancoRows = bancoRows.filter((_, i) => !canceledIdxs.has(i));
+  }
+
   // Compute daily totals per bucket
   const byDay = {};
   for (const v of vissmedRows) {
@@ -289,6 +295,30 @@ function nameSim(a, b) {
   if (A.size === 0 || B.size === 0) return 0;
   let hit = 0; A.forEach(x => { if (B.has(x)) hit++; });
   return hit / Math.min(A.size, B.size);
+}
+
+// Detecta e cancela pares Transferência | Pix (+) e Devolução | Pix (-) do mesmo pagador
+// Rodam sobre TODAS as transacoes banco (nao so do dia), pra pegar estornos em dias diferentes.
+function cancelEstornos(allBanco) {
+  const canceled = new Set();
+  // Agrupar por pagador+valor absoluto (só stone_tmm_conta)
+  const groups = {};
+  allBanco.forEach((b, i) => {
+    if (b.fonte !== 'stone_tmm_conta' || !b.pagador) return;
+    const key = `${b.pagador}|${Math.round(Math.abs(parseFloat(b.valor_bruto)) * 100)}`;
+    (groups[key] = groups[key] || []).push(i);
+  });
+  Object.values(groups).forEach(idxs => {
+    if (idxs.length < 2) return;
+    const pos = idxs.filter(i => parseFloat(allBanco[i].valor_bruto) > 0);
+    const neg = idxs.filter(i => parseFloat(allBanco[i].valor_bruto) < 0);
+    const n = Math.min(pos.length, neg.length);
+    for (let k = 0; k < n; k++) {
+      canceled.add(pos[k]);
+      canceled.add(neg[k]);
+    }
+  });
+  return canceled;
 }
 
 function matchDay(vDay, bDay) {

@@ -117,9 +117,11 @@ function parseOFX(text) {
         id_externo: fitid || '', pagador: null,
       });
     } else if (isStoneTMM) {
-      // Só interessa 'Transferência | Pix' (PIX Conta). Ignora 'Pix | Maquininha' (dupla) e cartões (dupla)
-      if (!/Transfer[êe]ncia\s*\|\s*Pix/i.test(memo)) continue;
+      const isTransf = /Transfer[êe]ncia\s*\|\s*Pix/i.test(memo);
+      const isDevol = /Devolu[çc][ãa]o\s*\|\s*Pix/i.test(memo);
+      if (!isTransf && !isDevol) continue;
       const pagador = memo.split(' - ')[0] || memo;
+      // Devoluções vêm negativas no OFX (TRNAMT<0). Preservar sinal.
       rows.push({
         data, hora, fonte: 'stone_tmm_conta',
         forma: 'pix_conta', bandeira: null, parcelas: 1,
