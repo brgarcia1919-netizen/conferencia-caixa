@@ -334,27 +334,29 @@ function matchDay(vDay, bDay) {
   const bUsed = new Array(bDay.length).fill(false);
   const vUsed = new Array(vDay.length).fill(false);
 
-  // Pass 1: 1-para-1 valor exato — escolhe o candidato com MELHOR score:
-  //   +NS bate atendente esperado
-  //   +proximidade horaria (menor diff em min)
-  vDay.forEach((v, i) => {
+  // Pass 1: 1-para-1 valor exato — matching global por score
+  //   +1000 se NS bate atendente esperado
+  //   -abs(minutos diff) por distancia temporal
+  // Constroi TODOS os pares candidatos, ordena por score desc, casa gulosamente
+  const pairs = [];
+  for (let i = 0; i < vDay.length; i++) {
+    const v = vDay[i];
     const val = parseFloat(v.valor_liquido);
     const vMin = toMin(v.hora);
-    let bestJ = -1, bestScore = -Infinity;
     for (let j = 0; j < bDay.length; j++) {
-      if (bUsed[j]) continue;
       const b = bDay[j];
       if (Math.abs(parseFloat(b.valor_bruto) - val) >= 0.01) continue;
       let score = 0;
-      const nsMatch = b.ns_maquininha && NS_ATENDENTE[b.ns_maquininha] === v.atendente;
-      if (nsMatch) score += 1000;
-      // penalidade por distancia temporal (max 24h = 1440 min)
-      const dt = Math.abs(vMin - toMin(b.hora));
-      score -= dt;
-      if (score > bestScore) { bestScore = score; bestJ = j; }
+      if (b.ns_maquininha && NS_ATENDENTE[b.ns_maquininha] === v.atendente) score += 1000;
+      score -= Math.abs(vMin - toMin(b.hora));
+      pairs.push({ i, j, score });
     }
-    if (bestJ >= 0) { bUsed[bestJ] = true; vUsed[i] = true; }
-  });
+  }
+  pairs.sort((a, b) => b.score - a.score);
+  for (const { i, j } of pairs) {
+    if (vUsed[i] || bUsed[j]) continue;
+    vUsed[i] = true; bUsed[j] = true;
+  }
 
   // Pass 2: N-para-1 (subset de banco soma = 1 Vissmed) — nome do pagador confirma quando existe
   vDay.forEach((v, i) => {
