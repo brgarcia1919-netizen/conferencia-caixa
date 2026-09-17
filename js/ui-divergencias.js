@@ -497,8 +497,9 @@ function buildDrillDown(dayRow) {
           const motivo = prompt('Motivo pra ignorar essa tx (ex: "estornado 16/09")');
           if (motivo === null) return;
           const { error } = await getClient().from('transacoes_banco').update({ ignorado: true, motivo_ignore: motivo }).eq('id', b.id);
-          if (error) alert('Erro: ' + error.message);
-          else renderDivergencias();
+          if (error) { alert('Erro: ' + error.message); return; }
+          try { await fetch(`/api/recompute-day?data=${b.data}`); } catch (_) {}
+          renderDivergencias();
         },
       });
       div.appendChild(ignoreBtn);
