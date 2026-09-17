@@ -62,11 +62,14 @@ export async function renderDivergencias() {
   vissmedRows = vRes.data;
   bancoRows = bRes.data;
 
-  // Remove pares transferência/devolução do mesmo pagador (estornos)
+  // 1) Remove pares transferência/devolução do mesmo pagador (estornos)
   const canceledIdxs = cancelEstornos(bancoRows);
   if (canceledIdxs.size > 0) {
     bancoRows = bancoRows.filter((_, i) => !canceledIdxs.has(i));
   }
+  // 2) Remove devoluções isoladas (valor < 0) — sao saidas de dinheiro (reembolsos),
+  //    nao fazem parte da conferencia de vendas
+  bancoRows = bancoRows.filter(b => parseFloat(b.valor_bruto || 0) >= 0);
 
   // Compute daily totals per bucket
   const byDay = {};

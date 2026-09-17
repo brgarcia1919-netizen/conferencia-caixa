@@ -49,6 +49,8 @@ export async function recomputeDay(isoDate) {
   const extrato_brg = empty();
   bRows.forEach(r => {
     const v = Number(r.valor_bruto || 0);
+    // Devolucoes isoladas (saidas de dinheiro) nao entram no calculo
+    if (v < 0) return;
     const dest = (r.fonte === 'stone_tmm' || r.fonte === 'stone_tmm_conta') ? extrato_tmm
                : (r.fonte === 'stone_brg' || r.fonte === 'infinite_brg') ? extrato_brg
                : null;
