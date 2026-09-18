@@ -52,10 +52,26 @@ export async function renderDivergencias() {
   const container = document.getElementById('view-divergencias');
   container.innerHTML = '<div class="card" style="padding:24px;text-align:center;color:var(--text-muted)">Carregando…</div>';
 
-  const [vRes, bRes] = await Promise.all([
-    getClient().from('transacoes_vissmed').select('*').order('data'),
-    getClient().from('transacoes_banco').select('*').eq('ignorado', false).order('data'),
+  // PostgREST limita 1000 rows por default — paginar em chunks
+  async function fetchAll(qb) {
+    const rows = [];
+    let from = 0;
+    const size = 1000;
+    while (true) {
+      const { data, error } = await qb.range(from, from + size - 1);
+      if (error) throw error;
+      rows.push(...data);
+      if (data.length < size) break;
+      from += size;
+    }
+    return rows;
+  }
+  const [vRows, bRows] = await Promise.all([
+    fetchAll(getClient().from('transacoes_vissmed').select('*').order('data')),
+    fetchAll(getClient().from('transacoes_banco').select('*').eq('ignorado', false).order('data')),
   ]);
+  const vRes = { data: vRows, error: null };
+  const bRes = { data: bRows, error: null };
   if (vRes.error) { container.innerHTML = `Erro: ${vRes.error.message}`; return; }
   if (bRes.error) { container.innerHTML = `Erro: ${bRes.error.message}`; return; }
 
