@@ -433,27 +433,33 @@ function buildDrillDown(dayRow) {
   const crossPairs = []; // {v, b, vForma, bForma}
   const consumedV = new Set();
   const consumedB = new Set();
-  FORMAS.forEach(fv => {
-    perForma[fv.key].vUnmatched.forEach(v => {
-      if (consumedV.has(v.id)) return;
+  // Cross-forma requer sinal FORTE: nome do paciente/pagador similar (>0.5)
+  // OU NS da maquininha bate atendente. Sem isso e' coincidencia numerica.
+  for (const fv of FORMAS) {
+    for (const v of perForma[fv.key].vUnmatched) {
+      if (consumedV.has(v.id)) continue;
       const val = parseFloat(v.valor_liquido);
-      FORMAS.forEach(fb => {
-        if (fb.key === fv.key) return;
-        perForma[fb.key].bUnmatched.forEach(b => {
-          if (consumedB.has(b.id)) return;
-          if (Math.abs(parseFloat(b.valor_bruto) - val) < 0.01) {
-            const nameOk = b.pagador ? nameSim(v.paciente, b.pagador) > 0.3 : true;
-            const nsOk = b.ns_maquininha && NS_ATENDENTE[b.ns_maquininha] === v.atendente;
-            if (nameOk || nsOk || !b.pagador) {
-              crossPairs.push({ v, b, vForma: fv.key, bForma: fb.key });
-              consumedV.add(v.id);
-              consumedB.add(b.id);
-            }
+      let paired = false;
+      for (const fb of FORMAS) {
+        if (paired) break;
+        if (fb.key === fv.key) continue;
+        for (const b of perForma[fb.key].bUnmatched) {
+          if (consumedB.has(b.id)) continue;
+          if (Math.abs(parseFloat(b.valor_bruto) - val) >= 0.01) continue;
+          const nameSimVal = b.pagador ? nameSim(v.paciente, b.pagador) : 0;
+          const nsOk = !!(b.ns_maquininha && NS_ATENDENTE[b.ns_maquininha] === v.atendente);
+          // Sinal forte necessario: NS bate OU nome bate (>0.5)
+          if (nsOk || nameSimVal > 0.5) {
+            crossPairs.push({ v, b, vForma: fv.key, bForma: fb.key });
+            consumedV.add(v.id);
+            consumedB.add(b.id);
+            paired = true;
+            break;
           }
-        });
-      });
-    });
-  });
+        }
+      }
+    }
+  }
 
   // Renderiza cross-forma no topo
   if (crossPairs.length > 0) {
