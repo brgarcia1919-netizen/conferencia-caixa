@@ -29,7 +29,9 @@ function parseStoneCSV(text) {
     const cols = lines[i].split(';');
     if (cols.length < header.length) continue;
     const get = (name) => cols[idx[name]] ? cols[idx[name]].trim() : '';
-    if (get('ULTIMO STATUS') !== 'Aprovada') continue;
+    const status = get('ULTIMO STATUS');
+    // Aceita Aprovada e "Parte cancelada" (venda parcialmente estornada)
+    if (status !== 'Aprovada' && status !== 'Parte cancelada') continue;
 
     const doc = get('DOCUMENTO');
     const fonte = doc === cnpjBRG ? 'stone_brg' : 'stone_tmm';
@@ -53,13 +55,21 @@ function parseStoneCSV(text) {
       tipo = 'credito';
     } else tipo = 'outro';
 
+    let valorBruto = parseBRL(get('VALOR BRUTO'));
+    const valorLiquido = parseBRL(get('VALOR LIQUIDO'));
+    // Em 'Parte cancelada', VALOR BRUTO ainda é o original antes do estorno.
+    // Bruto efetivo = liquido - desconto_unificado (desconto vem negativo).
+    if (status === 'Parte cancelada') {
+      const desc = parseBRL(get('DESCONTO UNIFICADO'));
+      valorBruto = Math.round((valorLiquido - desc) * 100) / 100;
+    }
     rows.push({
       data, hora, fonte,
       forma: tipo,
       bandeira: get('BANDEIRA') || null,
       parcelas: parseInt(get('N DE PARCELAS')) || 1,
-      valor_bruto: parseBRL(get('VALOR BRUTO')),
-      valor_liquido: parseBRL(get('VALOR LIQUIDO')),
+      valor_bruto: valorBruto,
+      valor_liquido: valorLiquido,
       ns_maquininha: get('N DE SERIE') || null,
       meio_captura: get('MEIO DE CAPTURA') || null,
       id_externo: get('STONE ID') || '',
