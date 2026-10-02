@@ -52,13 +52,13 @@ export async function renderDivergencias() {
   const container = document.getElementById('view-divergencias');
   container.innerHTML = '<div class="card" style="padding:24px;text-align:center;color:var(--text-muted)">Carregando…</div>';
 
-  // PostgREST limita 1000 rows por default — paginar em chunks
-  async function fetchAll(qb) {
+  // PostgREST limita 1000 rows por default — paginar em chunks reconstruindo query
+  async function fetchAll(buildQuery) {
     const rows = [];
     let from = 0;
     const size = 1000;
     while (true) {
-      const { data, error } = await qb.range(from, from + size - 1);
+      const { data, error } = await buildQuery().range(from, from + size - 1);
       if (error) throw error;
       rows.push(...data);
       if (data.length < size) break;
@@ -67,8 +67,8 @@ export async function renderDivergencias() {
     return rows;
   }
   const [vRows, bRows] = await Promise.all([
-    fetchAll(getClient().from('transacoes_vissmed').select('*').order('data')),
-    fetchAll(getClient().from('transacoes_banco').select('*').eq('ignorado', false).order('data')),
+    fetchAll(() => getClient().from('transacoes_vissmed').select('*').order('data')),
+    fetchAll(() => getClient().from('transacoes_banco').select('*').eq('ignorado', false).order('data')),
   ]);
   const vRes = { data: vRows, error: null };
   const bRes = { data: bRows, error: null };
@@ -100,7 +100,11 @@ export async function renderDivergencias() {
     byDay[b.data].banco[bk] = (byDay[b.data].banco[bk] || 0) + parseFloat(b.valor_bruto || 0);
   }
 
-  dailyRows = Object.values(byDay).sort((a, b) => b.data.localeCompare(a.data));
+  // Filtra dias sem dados do Vissmed (sistema total = 0) — nao da pra conferir
+  dailyRows = Object.values(byDay).filter(d => {
+    const sistTotal = Object.values(d.sistema).reduce((s, x) => s + (x || 0), 0);
+    return sistTotal > 0.01;
+  }).sort((a, b) => b.data.localeCompare(a.data));
   render();
 }
 
