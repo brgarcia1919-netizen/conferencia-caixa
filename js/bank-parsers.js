@@ -118,7 +118,9 @@ function parseOFX(text) {
       const taxaM = /Aplicada\(%\):\s*([\d.]+)/.exec(memo);
       const taxa = taxaM ? parseFloat(taxaM[1]) : null;
       let tipo;
-      if (/Pix/i.test(memo)) tipo = 'pix_maquininha';
+      // FITID em formato BACEN E2E (E + 8 ISPB + 12 timestamp + 11 chars = 32) indica PIX
+      const isE2E = /^E\d{8}\d{12}[A-Za-z0-9]{11}$/.test(fitid);
+      if (/Pix/i.test(memo) || isE2E) tipo = 'pix_maquininha';
       else if (taxa !== null) tipo = taxa < 3 ? 'debito' : 'credito';
       else if (trntype === 'POS') tipo = 'credito';
       else tipo = 'outro';
