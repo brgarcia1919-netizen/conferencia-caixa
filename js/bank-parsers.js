@@ -118,16 +118,20 @@ function parseOFX(text) {
       const taxaM = /Aplicada\(%\):\s*([\d.]+)/.exec(memo);
       const taxa = taxaM ? parseFloat(taxaM[1]) : null;
       let tipo;
-      // FITID em formato BACEN E2E (E + 8 ISPB + 12 timestamp + 11 chars = 32) indica PIX
+      // FITID em formato BACEN E2E indica PIX
       const isE2E = /^E\d{8}\d{12}[A-Za-z0-9]{11}$/.test(fitid);
       if (/Pix/i.test(memo) || isE2E) tipo = 'pix_maquininha';
-      else if (taxa !== null) tipo = taxa < 3 ? 'debito' : 'credito';
+      else if (taxa !== null) tipo = taxa < 1.5 ? 'debito' : 'credito';
       else if (trntype === 'POS') tipo = 'credito';
       else tipo = 'outro';
       const liqM = /L[íi]quido[^:]*:\s*\+?\s*R?\$?\s*([\d,.]+)/.exec(memo);
       const liquido = liqM ? parseBRL(liqM[1]) : amt;
+      // Infinite OFX usa UTC; converte para BRT (-3h)
+      const dtLocal = new Date(Date.UTC(+y, +mo - 1, +d, +hh, +mm, +ss) - 3 * 3600 * 1000);
+      const dataLocal = `${dtLocal.getUTCFullYear()}-${pad2(dtLocal.getUTCMonth() + 1)}-${pad2(dtLocal.getUTCDate())}`;
+      const horaLocal = `${pad2(dtLocal.getUTCHours())}:${pad2(dtLocal.getUTCMinutes())}:${pad2(dtLocal.getUTCSeconds())}`;
       rows.push({
-        data, hora, fonte: 'infinite_brg',
+        data: dataLocal, hora: horaLocal, fonte: 'infinite_brg',
         forma: tipo, bandeira: null, parcelas: 1,
         valor_bruto: amt, valor_liquido: liquido,
         ns_maquininha: ns, meio_captura: 'POS',
